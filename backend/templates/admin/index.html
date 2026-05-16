@@ -1,0 +1,667 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  /* ── Design tokens ─────────────────────────────────────────────── */
+  :root {
+    --dash-radius: 14px;
+    --dash-gap: 16px;
+    --dash-border: rgba(148, 163, 184, 0.18);
+    --dash-card-bg: #ffffff;
+    --dash-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04),
+                        0 8px 24px -12px rgba(15, 23, 42, 0.08);
+    --dash-fg: #0f172a;
+    --dash-fg-muted: #64748b;
+    --dash-bg: #f8fafc;
+    --dash-primary: #0ea5e9;
+    --dash-success: #10b981;
+    --dash-warning: #f59e0b;
+    --dash-danger:  #ef4444;
+    --dash-purple:  #8b5cf6;
+    --dash-pink:    #ec4899;
+  }
+  html[data-theme="dark"] {
+    --dash-border: rgba(148, 163, 184, 0.14);
+    --dash-card-bg: #1e293b;
+    --dash-card-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    --dash-fg: #f1f5f9;
+    --dash-fg-muted: #94a3b8;
+    --dash-bg: #0f172a;
+  }
+
+  /* ── Root ──────────────────────────────────────────────────────── */
+  #dashboard-root {
+    margin: 0 0 32px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    color: var(--dash-fg);
+  }
+  #dashboard-root .dash-section-title {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--dash-fg-muted);
+    margin: 24px 0 12px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #dashboard-root .dash-section-title::before {
+    content: ""; width: 18px; height: 2px;
+    background: var(--dash-primary); border-radius: 2px;
+  }
+
+  /* ── Hero KPI cards (big) ──────────────────────────────────────── */
+  .dash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--dash-gap);
+  }
+  .kpi {
+    position: relative;
+    background: var(--dash-card-bg);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 18px 20px;
+    box-shadow: var(--dash-card-shadow);
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06),
+                0 14px 30px -14px rgba(15, 23, 42, 0.2);
+  }
+  .kpi::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--kpi-accent, var(--dash-primary));
+  }
+  .kpi-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .kpi-label {
+    font-size: 12px; font-weight: 600;
+    color: var(--dash-fg-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .kpi-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--kpi-accent, var(--dash-primary)) 12%, transparent);
+    color: var(--kpi-accent, var(--dash-primary));
+  }
+  .kpi-icon svg { width: 20px; height: 20px; }
+  .kpi-value {
+    font-size: 34px; font-weight: 700; line-height: 1.1;
+    margin-top: 10px; color: var(--dash-fg);
+    letter-spacing: -0.5px;
+  }
+  .kpi-meta {
+    margin-top: 6px; font-size: 12px;
+    color: var(--dash-fg-muted);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .kpi-delta {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 600;
+  }
+  .kpi-delta.up   { background: rgba(16, 185, 129, 0.12); color: #059669; }
+  .kpi-delta.down { background: rgba(239, 68, 68, 0.12);  color: #dc2626; }
+  .kpi-delta.flat { background: rgba(100, 116, 139, 0.12); color: #64748b; }
+  .kpi-delta svg { width: 11px; height: 11px; }
+
+  /* Progress bar inside KPI */
+  .kpi-bar {
+    margin-top: 12px; height: 6px;
+    background: color-mix(in srgb, var(--kpi-accent, var(--dash-primary)) 12%, transparent);
+    border-radius: 99px; overflow: hidden;
+  }
+  .kpi-bar-fill {
+    height: 100%;
+    background: var(--kpi-accent, var(--dash-primary));
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* ── Accent colour variants ────────────────────────────────────── */
+  .kpi.accent-primary { --kpi-accent: var(--dash-primary); }
+  .kpi.accent-success { --kpi-accent: var(--dash-success); }
+  .kpi.accent-warning { --kpi-accent: var(--dash-warning); }
+  .kpi.accent-danger  { --kpi-accent: var(--dash-danger);  }
+  .kpi.accent-purple  { --kpi-accent: var(--dash-purple);  }
+  .kpi.accent-pink    { --kpi-accent: var(--dash-pink);    }
+
+  /* ── Mini metric strip ─────────────────────────────────────────── */
+  .dash-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--dash-gap);
+  }
+  .mini {
+    background: var(--dash-card-bg);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 14px 16px;
+    box-shadow: var(--dash-card-shadow);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .mini-icon {
+    flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--mini-accent, var(--dash-primary)) 14%, transparent);
+    color: var(--mini-accent, var(--dash-primary));
+  }
+  .mini-icon svg { width: 20px; height: 20px; }
+  .mini-body { flex: 1; min-width: 0; }
+  .mini-label { font-size: 11px; color: var(--dash-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mini-value { font-size: 20px; font-weight: 700; color: var(--dash-fg); margin-top: 1px; }
+
+  .mini.accent-primary { --mini-accent: var(--dash-primary); }
+  .mini.accent-success { --mini-accent: var(--dash-success); }
+  .mini.accent-warning { --mini-accent: var(--dash-warning); }
+  .mini.accent-danger  { --mini-accent: var(--dash-danger);  }
+  .mini.accent-purple  { --mini-accent: var(--dash-purple);  }
+  .mini.accent-pink    { --mini-accent: var(--dash-pink);    }
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  .dash-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--dash-gap);
+  }
+  .chart {
+    background: var(--dash-card-bg);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 18px 20px;
+    box-shadow: var(--dash-card-shadow);
+  }
+  .chart.col-8 { grid-column: span 8; }
+  .chart.col-4 { grid-column: span 4; }
+  .chart.col-6 { grid-column: span 6; }
+  .chart.col-12 { grid-column: span 12; }
+  @media (max-width: 980px) {
+    .chart.col-8, .chart.col-4, .chart.col-6 { grid-column: span 12; }
+  }
+  .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .chart-title { font-size: 14px; font-weight: 700; color: var(--dash-fg); margin: 0; }
+  .chart-sub { font-size: 11px; color: var(--dash-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .chart-body { position: relative; height: 240px; }
+  .chart.tall .chart-body { height: 300px; }
+
+  /* ── Tables ────────────────────────────────────────────────────── */
+  .dash-tables-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: var(--dash-gap);
+  }
+  .rtbl {
+    background: var(--dash-card-bg);
+    border: 1px solid var(--dash-border);
+    border-radius: var(--dash-radius);
+    padding: 18px 20px;
+    box-shadow: var(--dash-card-shadow);
+  }
+  .rtbl table { width: 100%; border-collapse: collapse; }
+  .rtbl th {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--dash-fg-muted);
+    text-align: left; padding: 8px 10px;
+    border-bottom: 1px solid var(--dash-border);
+  }
+  .rtbl td {
+    font-size: 13px; padding: 10px 10px;
+    border-bottom: 1px solid var(--dash-border);
+    color: var(--dash-fg);
+  }
+  .rtbl tr:last-child td { border-bottom: none; }
+  .rtbl tr:hover td { background: color-mix(in srgb, var(--dash-primary) 4%, transparent); }
+  .rtbl .empty {
+    text-align: center; color: var(--dash-fg-muted);
+    font-style: italic; padding: 24px 0;
+  }
+
+  /* ── Status pills ──────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 99px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .pill::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .pill.high      { background: rgba(239, 68, 68, 0.14);  color: #dc2626; }
+  .pill.low       { background: rgba(16, 185, 129, 0.14); color: #059669; }
+  .pill.pending   { background: rgba(245, 158, 11, 0.14); color: #b45309; }
+  .pill.confirmed { background: rgba(16, 185, 129, 0.14); color: #059669; }
+  .pill.cancelled { background: rgba(239, 68, 68, 0.14);  color: #dc2626; }
+
+  html[data-theme="dark"] .pill.high      { color: #fca5a5; }
+  html[data-theme="dark"] .pill.low       { color: #6ee7b7; }
+  html[data-theme="dark"] .pill.pending   { color: #fcd34d; }
+  html[data-theme="dark"] .pill.confirmed { color: #6ee7b7; }
+  html[data-theme="dark"] .pill.cancelled { color: #fca5a5; }
+
+  /* ── Entrance animation ───────────────────────────────────────── */
+  @keyframes dashFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+  .kpi, .mini, .chart, .rtbl {
+    animation: dashFadeIn 0.4s ease both;
+  }
+  .kpi:nth-child(2)  { animation-delay: 0.05s; }
+  .kpi:nth-child(3)  { animation-delay: 0.10s; }
+  .kpi:nth-child(4)  { animation-delay: 0.15s; }
+  .mini:nth-child(2) { animation-delay: 0.20s; }
+  .mini:nth-child(3) { animation-delay: 0.25s; }
+  .mini:nth-child(4) { animation-delay: 0.30s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dashboard-root">
+
+  {# ── Hero row : 4 big KPI cards ────────────────────────────────── #}
+  <div class="dash-section-title">Key Metrics</div>
+  <div class="dash-kpi-grid">
+
+    {# Users #}
+    <div class="kpi accent-primary">
+      <div class="kpi-row">
+        <div class="kpi-label">Total Users</div>
+        <div class="kpi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+      </div>
+      <div class="kpi-value">{{ dashboard.stats.total_users }}</div>
+      <div class="kpi-meta">
+        <span>{{ dashboard.stats.total_patients }} patients · {{ dashboard.stats.total_doctors }} doctors</span>
+        {% if dashboard.stats.users_delta is not None %}
+          {% if dashboard.stats.users_delta > 0 %}
+            <span class="kpi-delta up">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              +{{ dashboard.stats.users_delta }}%
+            </span>
+          {% elif dashboard.stats.users_delta < 0 %}
+            <span class="kpi-delta down">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              {{ dashboard.stats.users_delta }}%
+            </span>
+          {% else %}
+            <span class="kpi-delta flat">±0%</span>
+          {% endif %}
+          <span>vs. last week</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Predictions #}
+    <div class="kpi accent-purple">
+      <div class="kpi-row">
+        <div class="kpi-label">Predictions</div>
+        <div class="kpi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+      </div>
+      <div class="kpi-value">{{ dashboard.stats.total_predictions }}</div>
+      <div class="kpi-meta">
+        <span>avg prob: {{ dashboard.stats.avg_prob }}%</span>
+        {% if dashboard.stats.preds_delta is not None %}
+          {% if dashboard.stats.preds_delta > 0 %}
+            <span class="kpi-delta up">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              +{{ dashboard.stats.preds_delta }}%
+            </span>
+          {% elif dashboard.stats.preds_delta < 0 %}
+            <span class="kpi-delta down">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              {{ dashboard.stats.preds_delta }}%
+            </span>
+          {% else %}
+            <span class="kpi-delta flat">±0%</span>
+          {% endif %}
+          <span>this week</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# High Risk Rate #}
+    <div class="kpi accent-danger">
+      <div class="kpi-row">
+        <div class="kpi-label">High Risk Rate</div>
+        <div class="kpi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+      </div>
+      <div class="kpi-value">{{ dashboard.stats.high_risk_pct }}%</div>
+      <div class="kpi-meta"><span>{{ dashboard.stats.high_risk }} of {{ dashboard.stats.total_predictions }} predictions</span></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width: {{ dashboard.stats.high_risk_pct }}%"></div></div>
+    </div>
+
+    {# Appointments #}
+    <div class="kpi accent-success">
+      <div class="kpi-row">
+        <div class="kpi-label">Appointments</div>
+        <div class="kpi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+        </div>
+      </div>
+      <div class="kpi-value">{{ dashboard.stats.total_appointments }}</div>
+      <div class="kpi-meta"><span>{{ dashboard.stats.confirmed_ap }} confirmed · {{ dashboard.stats.pending_ap }} pending</span></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width: {{ dashboard.stats.confirm_rate }}%"></div></div>
+    </div>
+
+  </div>
+
+  {# ── Secondary metric strip : 4 mini cards ─────────────────────── #}
+  <div class="dash-section-title">Secondary Metrics</div>
+  <div class="dash-mini-grid">
+    <div class="mini accent-purple">
+      <div class="mini-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="mini-body">
+        <div class="mini-label">Predictions this week</div>
+        <div class="mini-value">{{ dashboard.stats.preds_this_week }}</div>
+      </div>
+    </div>
+    <div class="mini accent-success">
+      <div class="mini-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="mini-body">
+        <div class="mini-label">Confirmation rate</div>
+        <div class="mini-value">{{ dashboard.stats.confirm_rate }}%</div>
+      </div>
+    </div>
+    <div class="mini accent-warning">
+      <div class="mini-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="mini-body">
+        <div class="mini-label">Articles</div>
+        <div class="mini-value">{{ dashboard.stats.total_articles }}</div>
+      </div>
+    </div>
+    <div class="mini accent-pink">
+      <div class="mini-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.34-9.66A1.5 1.5 0 0 1 14 1.5L15 5.88z"/></svg>
+      </div>
+      <div class="mini-body">
+        <div class="mini-label">Upvote rate</div>
+        <div class="mini-value">{{ dashboard.stats.upvote_rate }}%</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Charts row 1 : predictions trend (wide) + risk donut ──────── #}
+  <div class="dash-section-title">Trends & Distribution</div>
+  <div class="dash-charts-grid">
+    <div class="chart col-8 tall">
+      <div class="chart-head">
+        <h3 class="chart-title">Predictions volume</h3>
+        <span class="chart-sub">last 30 days</span>
+      </div>
+      <div class="chart-body"><canvas id="chart-predictions"></canvas></div>
+    </div>
+    <div class="chart col-4 tall">
+      <div class="chart-head">
+        <h3 class="chart-title">Risk distribution</h3>
+        <span class="chart-sub">high vs low</span>
+      </div>
+      <div class="chart-body"><canvas id="chart-risk"></canvas></div>
+    </div>
+  </div>
+
+  {# ── Charts row 2 : status / role / doctors ────────────────────── #}
+  <div class="dash-charts-grid" style="margin-top: var(--dash-gap);">
+    <div class="chart col-4">
+      <div class="chart-head">
+        <h3 class="chart-title">Appointments</h3>
+        <span class="chart-sub">by status</span>
+      </div>
+      <div class="chart-body"><canvas id="chart-appointments"></canvas></div>
+    </div>
+    <div class="chart col-4">
+      <div class="chart-head">
+        <h3 class="chart-title">Users</h3>
+        <span class="chart-sub">by role</span>
+      </div>
+      <div class="chart-body"><canvas id="chart-roles"></canvas></div>
+    </div>
+    <div class="chart col-4">
+      <div class="chart-head">
+        <h3 class="chart-title">Top doctors</h3>
+        <span class="chart-sub">by appointments</span>
+      </div>
+      <div class="chart-body"><canvas id="chart-doctors"></canvas></div>
+    </div>
+  </div>
+
+  {# ── Recent activity tables ────────────────────────────────────── #}
+  <div class="dash-section-title">Recent Activity</div>
+  <div class="dash-tables-grid">
+    <div class="rtbl">
+      <div class="chart-head">
+        <h3 class="chart-title">Latest predictions</h3>
+        <span class="chart-sub">last 5</span>
+      </div>
+      <table>
+        <thead><tr><th>User</th><th>Risk</th><th>Probability</th><th>Date</th></tr></thead>
+        <tbody>
+        {% for p in dashboard.recent_predictions %}
+          <tr>
+            <td><strong>{{ p.user.username }}</strong></td>
+            <td>{% if p.prediction %}<span class="pill high">High</span>{% else %}<span class="pill low">Low</span>{% endif %}</td>
+            <td>{{ p.probability|floatformat:3 }}</td>
+            <td>{{ p.created_at|date:"d/m/Y H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">No predictions yet</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="rtbl">
+      <div class="chart-head">
+        <h3 class="chart-title">Latest appointments</h3>
+        <span class="chart-sub">last 5</span>
+      </div>
+      <table>
+        <thead><tr><th>Patient</th><th>Doctor</th><th>When</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for a in dashboard.recent_appointments %}
+          <tr>
+            <td><strong>{{ a.patient.username }}</strong></td>
+            <td>{{ a.doctor.full_name|default:a.doctor.username }}</td>
+            <td>{{ a.date|date:"d/m/Y" }} {{ a.time|time:"H:i" }}</td>
+            <td><span class="pill {{ a.status }}">{{ a.status }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="empty">No appointments yet</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{# Hidden data island: safely passes chart data to JS #}
+{{ dashboard.charts_json|json_script:"dashboard-charts-data" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  // json_script double-encodes when we pass a JSON string: parse once to
+  // get the inner JSON string, then once more for the actual object.
+  var raw = document.getElementById('dashboard-charts-data').textContent;
+  var d   = JSON.parse(raw);
+  if (typeof d === 'string') { d = JSON.parse(d); }
+
+  // Detect dark mode from Django admin's data-theme attribute.
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  var fg     = isDark ? '#f1f5f9' : '#0f172a';
+  var muted  = isDark ? '#94a3b8' : '#64748b';
+  var grid   = isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(148, 163, 184, 0.22)';
+
+  var COLORS = {
+    primary: '#0ea5e9', success: '#10b981', warning: '#f59e0b',
+    danger:  '#ef4444', purple:  '#8b5cf6', pink:    '#ec4899',
+    info:    '#06b6d4'
+  };
+
+  // Chart.js global defaults — matches the dashboard typography.
+  if (window.Chart) {
+    Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    Chart.defaults.font.size   = 11;
+    Chart.defaults.color       = muted;
+    Chart.defaults.borderColor = grid;
+  }
+
+  var baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 10, boxHeight: 10, padding: 14, usePointStyle: true, pointStyle: 'circle' }
+      },
+      tooltip: {
+        backgroundColor: isDark ? '#0f172a' : '#ffffff',
+        titleColor: fg, bodyColor: fg,
+        borderColor: grid, borderWidth: 1,
+        padding: 10, cornerRadius: 8,
+        displayColors: true, boxPadding: 4
+      }
+    }
+  };
+
+  // ── 1. Predictions over time — gradient line ──
+  (function () {
+    var ctx = document.getElementById('chart-predictions').getContext('2d');
+    var gradient = ctx.createLinearGradient(0, 0, 0, 280);
+    gradient.addColorStop(0, 'rgba(14, 165, 233, 0.32)');
+    gradient.addColorStop(1, 'rgba(14, 165, 233, 0.00)');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: d.predictions_per_day_labels,
+        datasets: [{
+          label: 'Predictions',
+          data: d.predictions_per_day_values,
+          borderColor: COLORS.primary,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: COLORS.primary,
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
+          borderWidth: 2.5
+        }]
+      },
+      options: Object.assign({}, baseOpts, {
+        plugins: Object.assign({}, baseOpts.plugins, { legend: { display: false } }),
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            grid: { color: grid, drawBorder: false }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+          }
+        }
+      })
+    });
+  })();
+
+  // ── 2. Risk distribution — doughnut ──
+  new Chart(document.getElementById('chart-risk'), {
+    type: 'doughnut',
+    data: {
+      labels: ['High risk', 'Low risk'],
+      datasets: [{
+        data: d.risk_values,
+        backgroundColor: [COLORS.danger, COLORS.success],
+        borderColor: isDark ? '#1e293b' : '#ffffff',
+        borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: Object.assign({}, baseOpts, { cutout: '62%' })
+  });
+
+  // ── 3. Appointment status — rounded bar ──
+  new Chart(document.getElementById('chart-appointments'), {
+    type: 'bar',
+    data: {
+      labels: ['Pending', 'Confirmed', 'Cancelled'],
+      datasets: [{
+        data: d.appointment_status_values,
+        backgroundColor: [COLORS.warning, COLORS.success, COLORS.danger],
+        borderRadius: 8,
+        maxBarThickness: 44
+      }]
+    },
+    options: Object.assign({}, baseOpts, {
+      plugins: Object.assign({}, baseOpts.plugins, { legend: { display: false } }),
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: grid, drawBorder: false } },
+        x: { grid: { display: false } }
+      }
+    })
+  });
+
+  // ── 4. Users by role — pie ──
+  new Chart(document.getElementById('chart-roles'), {
+    type: 'pie',
+    data: {
+      labels: ['Patients', 'Doctors'],
+      datasets: [{
+        data: d.users_by_role_values,
+        backgroundColor: [COLORS.info, COLORS.purple],
+        borderColor: isDark ? '#1e293b' : '#ffffff',
+        borderWidth: 3,
+        hoverOffset: 6
+      }]
+    },
+    options: baseOpts
+  });
+
+  // ── 5. Top doctors — horizontal rounded bar ──
+  var hasDoctors = d.top_doctors_labels.length > 0;
+  new Chart(document.getElementById('chart-doctors'), {
+    type: 'bar',
+    data: {
+      labels: hasDoctors ? d.top_doctors_labels : ['(no doctors yet)'],
+      datasets: [{
+        label: 'Appointments',
+        data: hasDoctors ? d.top_doctors_values : [0],
+        backgroundColor: COLORS.primary,
+        borderRadius: 6,
+        maxBarThickness: 24
+      }]
+    },
+    options: Object.assign({}, baseOpts, {
+      indexAxis: 'y',
+      plugins: Object.assign({}, baseOpts.plugins, { legend: { display: false } }),
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: grid, drawBorder: false } },
+        y: { grid: { display: false } }
+      }
+    })
+  });
+})();
+</script>
+
+{{ block.super }}
+{% endblock %}
