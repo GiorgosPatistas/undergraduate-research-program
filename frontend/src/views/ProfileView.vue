@@ -54,19 +54,67 @@
         </div>
       </div>
 
+      <!-- Pending Requests -->
+      <div class="card mb-6">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="text-lg font-semibold text-white">Pending Requests</h3>
+          <span v-if="pendingAppointments.length" class="badge badge-blue text-xs">
+            {{ pendingAppointments.length }} new
+          </span>
+        </div>
+
+        <div v-if="apptLoading" class="text-slate-400 text-sm text-center py-6">Loading…</div>
+
+        <div v-else-if="!pendingAppointments.length" class="text-slate-500 text-sm text-center py-6">
+          No pending requests.
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="appt in pendingAppointments"
+            :key="appt.id"
+            class="flex items-center justify-between py-3 border-b border-navy-700 last:border-0 gap-4"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-white font-medium text-sm truncate">{{ appt.patient_name }}</div>
+              <div class="text-slate-400 text-xs truncate">{{ appt.patient_email }}</div>
+              <div class="text-slate-500 text-xs mt-0.5">{{ formatDate(appt.date) }} · {{ appt.time }}</div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button
+                @click="respondToAppointment(appt, 'confirmed')"
+                :disabled="respondingId === appt.id"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+              >
+                <span v-if="respondingId === appt.id && respondingAction === 'confirmed'">…</span>
+                <span v-else>✓ Accept</span>
+              </button>
+              <button
+                @click="respondToAppointment(appt, 'cancelled')"
+                :disabled="respondingId === appt.id"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-crimson-500/20 text-crimson-400 border border-crimson-500/30 hover:bg-crimson-500/30 transition-colors disabled:opacity-50"
+              >
+                <span v-if="respondingId === appt.id && respondingAction === 'cancelled'">…</span>
+                <span v-else>✗ Decline</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Appointment history -->
       <div class="card mb-6">
         <h3 class="text-lg font-semibold text-white mb-5">Appointment History</h3>
 
         <div v-if="apptLoading" class="text-slate-400 text-sm text-center py-6">Loading…</div>
 
-        <div v-else-if="!appointments.length" class="text-slate-500 text-sm text-center py-6">
+        <div v-else-if="!resolvedAppointments.length" class="text-slate-500 text-sm text-center py-6">
           No appointments yet.
         </div>
 
         <div v-else class="space-y-3">
           <div
-            v-for="appt in appointments"
+            v-for="appt in resolvedAppointments"
             :key="appt.id"
             class="flex items-center justify-between py-3 border-b border-navy-700 last:border-0"
           >
@@ -81,7 +129,6 @@
             <span
               class="badge text-xs"
               :class="{
-                'badge-blue':  appt.status === 'pending',
                 'badge-green': appt.status === 'confirmed',
                 'badge-red':   appt.status === 'cancelled',
               }"
@@ -314,12 +361,36 @@ onMounted(() => {
   if (auth.isPatient) loadPredictions()
 })
 
+// ── Doctor: filtered appointment lists ────────────────────────────────────────
+const pendingAppointments  = computed(() => appointments.value.filter(a => a.status === 'pending'))
+const resolvedAppointments = computed(() => appointments.value.filter(a => a.status !== 'pending'))
+
 // ── Doctor stats ───────────────────────────────────────────────────────────────
 const apptStats = computed(() => ({
   total:     appointments.value.length,
   confirmed: appointments.value.filter(a => a.status === 'confirmed').length,
-  pending:   appointments.value.filter(a => a.status === 'pending').length,
+  pending:   pendingAppointments.value.length,
 }))
+
+// ── Doctor: respond to appointment ────────────────────────────────────────────
+const respondingId     = ref(null)
+const respondingAction = ref(null)
+
+async function respondToAppointment(appt, newStatus) {
+  respondingId.value     = appt.id
+  respondingAction.value = newStatus
+  try {
+    const { data } = await api.patch(`/appointments/${appt.id}/status/`, { status: newStatus })
+    // Update in-place so the UI reacts instantly without a full reload
+    const idx = appointments.value.findIndex(a => a.id === appt.id)
+    if (idx !== -1) appointments.value[idx] = data
+  } catch (err) {
+    console.error('Failed to update appointment:', err)
+  } finally {
+    respondingId.value     = null
+    respondingAction.value = null
+  }
+}
 
 // ── Password change (shared) ───────────────────────────────────────────────────
 const passwordForm    = reactive({ current: '', new_password: '', confirm: '' })

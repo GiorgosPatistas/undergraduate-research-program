@@ -27,9 +27,9 @@ class PredictView(APIView):
     """
     Receives patient data from Vue, forwards to FastAPI ML service,
     saves the result, and returns it to the frontend.
-    Only patients may call this endpoint.
+    Patients and doctors may call this endpoint.
     """
-    permission_classes = [IsPatient]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         # ── Validate input before calling FastAPI ──────────────────
@@ -80,8 +80,8 @@ class PredictView(APIView):
 
 
 class PredictionListView(APIView):
-    """GET /api/predictions/ — returns the logged-in patient's prediction history."""
-    permission_classes = [IsPatient]
+    """GET /api/predictions/ — returns the logged-in user's prediction history."""
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         predictions = Prediction.objects.filter(user=request.user)

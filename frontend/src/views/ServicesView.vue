@@ -13,6 +13,155 @@
         <p class="text-slate-400">View your appointments and patient prediction results.</p>
       </div>
 
+      <!-- Clinical Assessment Tool -->
+      <div class="card mb-8">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Clinical Assessment Tool</h2>
+            <p class="text-slate-400 text-sm mt-0.5">Run a readmission risk prediction for a patient.</p>
+          </div>
+          <button
+            @click="showDoctorPredForm = !showDoctorPredForm"
+            class="btn-primary text-sm px-4 py-2"
+          >
+            {{ showDoctorPredForm ? '✕ Close' : '+ Run Prediction' }}
+          </button>
+        </div>
+
+        <div v-if="showDoctorPredForm" class="mt-6 border-t border-navy-700 pt-6 space-y-5">
+
+          <!-- Result view -->
+          <div v-if="predResult" class="space-y-5">
+            <div
+              class="rounded-xl border p-6 text-center"
+              :class="isHighRisk ? 'bg-crimson-500/10 border-crimson-500/40' : 'bg-emerald-500/10 border-emerald-500/40'"
+            >
+              <div class="text-5xl font-display font-bold mb-2"
+                :class="isHighRisk ? 'text-crimson-400' : 'text-emerald-400'">
+                {{ (predResult.probability * 100).toFixed(1) }}%
+              </div>
+              <div class="text-lg font-semibold text-white mb-1">
+                {{ isHighRisk ? 'High Readmission Risk' : 'Low Readmission Risk' }}
+              </div>
+              <span :class="isHighRisk ? 'badge-red' : 'badge-green'" class="badge text-sm px-4 py-1 inline-block">
+                {{ isHighRisk ? 'Readmission Predicted' : 'No Readmission Predicted' }}
+              </span>
+            </div>
+
+            <div v-if="predResult.shap_values">
+              <h3 class="text-sm font-semibold text-white mb-3">Top Risk Factors (SHAP)</h3>
+              <div class="space-y-2">
+                <div
+                  v-for="s in sortedShap(predResult.shap_values).slice(0, 6)"
+                  :key="s.feature"
+                  class="flex items-center gap-3 text-xs"
+                >
+                  <span class="w-44 truncate text-slate-300 font-mono">{{ s.feature }}</span>
+                  <div class="flex-1 h-2 bg-navy-700 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full"
+                      :class="s.value >= 0 ? 'bg-crimson-500' : 'bg-emerald-500'"
+                      :style="{ width: Math.min(Math.abs(s.value) * 300, 100) + '%' }"
+                    ></div>
+                  </div>
+                  <span :class="s.value >= 0 ? 'text-crimson-400' : 'text-emerald-400'" class="w-16 text-right font-mono">
+                    {{ s.value >= 0 ? '+' : '' }}{{ s.value.toFixed(3) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-secondary text-sm py-2 px-6" @click="predResult = null; predError = null">
+              ← New Prediction
+            </button>
+          </div>
+
+          <!-- Prediction form -->
+          <form v-else @submit.prevent="runPrediction" class="space-y-5">
+            <div class="grid md:grid-cols-3 gap-4">
+              <div>
+                <label class="form-label">Age Group</label>
+                <select v-model="form.age" class="form-input">
+                  <option v-for="a in ageOptions" :key="a" :value="a">{{ a }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Gender</label>
+                <select v-model="form.gender" class="form-input">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Unknown/Invalid">Unknown</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Race</label>
+                <select v-model="form.race" class="form-input">
+                  <option value="Caucasian">Caucasian</option>
+                  <option value="AfricanAmerican">African American</option>
+                  <option value="Hispanic">Hispanic</option>
+                  <option value="Asian">Asian</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-4 gap-4">
+              <div v-for="field in admissionFields" :key="field.key">
+                <label class="form-label">{{ field.label }}</label>
+                <input v-model.number="form[field.key]" type="number"
+                  :min="field.min" :max="field.max" class="form-input" :placeholder="field.placeholder" />
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">HbA1c Result</label>
+                <select v-model="form.A1Cresult" class="form-input">
+                  <option value="None">Not Measured</option>
+                  <option value=">8">&gt;8 (Uncontrolled)</option>
+                  <option value=">7">&gt;7 (Borderline)</option>
+                  <option value="Norm">Normal</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Max Glucose Serum</label>
+                <select v-model="form.max_glu_serum" class="form-input">
+                  <option value="None">Not Measured</option>
+                  <option value=">200">&gt;200</option>
+                  <option value=">300">&gt;300</option>
+                  <option value="Norm">Normal</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Insulin</label>
+                <select v-model="form.insulin" class="form-input">
+                  <option value="No">No</option>
+                  <option value="Steady">Steady</option>
+                  <option value="Up">Up</option>
+                  <option value="Down">Down</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Diabetes Medication</label>
+                <select v-model="form.diabetesMed" class="form-input">
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+            </div>
+
+            <div v-if="predError" class="rounded-lg bg-crimson-500/10 border border-crimson-500/30 px-4 py-3 text-crimson-300 text-sm">
+              {{ predError }}
+            </div>
+
+            <button type="submit" class="btn-primary px-8 py-2.5" :disabled="predLoading">
+              <span v-if="predLoading" class="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full mr-2"></span>
+              {{ predLoading ? 'Running model…' : 'Run Prediction →' }}
+            </button>
+          </form>
+        </div>
+      </div>
+
       <!-- Error banner -->
       <div v-if="appts.error" class="mb-4 p-4 rounded-lg bg-red-900/40 border border-red-700 text-red-300 text-sm">
         {{ appts.error }}
@@ -457,6 +606,8 @@ const auth  = useAuthStore()
 const appts = useAppointmentsStore()
 
 // ── Doctor ────────────────────────────────────────────────────────────────────
+const showDoctorPredForm = ref(false)
+
 onMounted(() => {
   if (auth.isDoctor) {
     appts.fetchAppointments()
