@@ -92,9 +92,15 @@ class PredictViewTests(APITestCase):
         self.assertTrue(pred.prediction)
         self.assertAlmostEqual(float(pred.probability), 0.72)
 
-    def test_doctor_cannot_make_prediction(self):
+    @patch('api.views.requests.post')
+    def test_doctor_can_make_prediction(self, mock_post):
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: ML_SUCCESS_RESPONSE,
+            raise_for_status=lambda: None,
+        )
         res = self.client.post(self.url, VALID_PATIENT_DATA, format='json', **auth_header(self.doctor))
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
     def test_unauthenticated_cannot_make_prediction(self):
         res = self.client.post(self.url, VALID_PATIENT_DATA, format='json')

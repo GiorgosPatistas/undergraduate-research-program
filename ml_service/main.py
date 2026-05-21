@@ -13,7 +13,6 @@ Returns: { prediction, probability, shap_values }
 """
 
 import os
-import shap
 import joblib
 import numpy as np
 import pandas as pd
@@ -63,12 +62,11 @@ calibrated_model = None  # CalibratedClassifierCV — used for predictions
 feature_names   = None
 cat_cols        = None
 booster         = None
-explainer       = None
 
 
 @app.on_event('startup')
 def load_model():
-    global model, calibrated_model, feature_names, cat_cols, booster, explainer
+    global model, calibrated_model, feature_names, cat_cols, booster
     missing = [p for p in (MODEL_PATH, FEAT_PATH, CAT_PATH) if not os.path.exists(p)]
     if missing:
         for p in missing:
@@ -80,7 +78,6 @@ def load_model():
     feature_names = joblib.load(FEAT_PATH)
     cat_cols      = joblib.load(CAT_PATH)
     booster       = model.get_booster()
-    explainer     = shap.TreeExplainer(booster)
 
     # Load calibrated model if available
     if os.path.exists(CAL_PATH):
@@ -277,15 +274,16 @@ def inference(data: PatientData):
     probability = float(calibrated_model.predict_proba(X)[0][1])
     prediction  = probability >= 0.5
 
-    # SHAP values (uncalibrated model — TreeExplainer requirement)
-    # Categorical columns must be converted to numeric codes before passing to SHAP
+    # SHAP values via XGBoost native pred_contribs (no shap package required)
+    # Categorical columns must be converted to numeric codes before passing to DMatrix
     shap_values = None
     try:
         X_shap = X.copy()
         for col in X_shap.select_dtypes(include='category').columns:
             X_shap[col] = X_shap[col].cat.codes.astype(float).replace(-1.0, np.nan)
-        sv          = explainer.shap_values(X_shap)
-        shap_array  = sv[0] if isinstance(sv, list) else sv[0]
+        dmatrix    = xgb.DMatrix(X_shap)
+        sv         = booster.predict(dmatrix, pred_contribs=True)
+        shap_array = sv[0][:-1]  # last column is the bias term — exclude it
         shap_values = [
             {'feature': str(feat), 'value': float(val)}
             for feat, val in zip(feature_names, shap_array)

@@ -27,7 +27,7 @@ class PredictView(APIView):
     """
     Receives patient data from Vue, forwards to FastAPI ML service,
     saves the result, and returns it to the frontend.
-    Patients and doctors may call this endpoint.
+    Both patients and doctors may call this endpoint.
     """
     permission_classes = [IsAuthenticated]
 
