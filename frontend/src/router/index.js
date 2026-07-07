@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/features/account/store'
 
-const HomeView     = () => import('@/views/HomeView.vue')
-const LoginView    = () => import('@/views/LoginView.vue')
-const RegisterView = () => import('@/views/RegisterView.vue')
-const ServicesView = () => import('@/views/ServicesView.vue')
-const BlogView     = () => import('@/views/BlogView.vue')
-const ProfileView  = () => import('@/views/ProfileView.vue')
+import HomeView from '@/features/home/views/HomeView.vue'
+import LoginView from '@/features/account/views/LoginView.vue'
+import RegisterView from '@/features/account/views/RegisterView.vue'
+import ServicesView from '@/features/predictions/views/ServicesView.vue'
+import BlogView from '@/features/blog/views/BlogView.vue'
+import ProfileView from '@/features/account/views/ProfileView.vue'
 
 const routes = [
   {

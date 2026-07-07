@@ -103,7 +103,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/features/account/store'
 
 const auth     = useAuthStore()
 const menuOpen = ref(false)
