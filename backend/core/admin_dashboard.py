@@ -152,3 +152,4 @@ admin.site.index        = _dashboard_index
 admin.site.site_header  = 'Smart Healthcare — Administration'
 admin.site.site_title   = 'Smart Healthcare Admin'
 admin.site.index_title  = 'Dashboard'
+admin.site.site_url     = 'http://localhost:5173'
