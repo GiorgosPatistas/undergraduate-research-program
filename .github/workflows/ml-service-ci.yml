@@ -1,0 +1,23 @@
+name: ML Service CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['ml_service/**', '.github/workflows/ml-service-ci.yml']
+  pull_request:
+    branches: [main]
+    paths: ['ml_service/**', '.github/workflows/ml-service-ci.yml']
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml_service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -c "import main"
